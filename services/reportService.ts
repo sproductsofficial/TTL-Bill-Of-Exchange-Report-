@@ -121,8 +121,8 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
 
   // --- Table Data ---
   const tableColumn = [
-    "Fabric Code", "Item Description", "Rcvd Date", "Challan No", 
-    "Pi Number", "Unit", "Invoice Qty", "Rcvd Qty", "Unit Price ($)", "Total Value ($)", "Appstreme No"
+    "Fabric Code", "Item Description", "Received Date", "Challan No", 
+    "Pi Number", "Unit", "Invoice Qty", "Received Qty", "Unit Price ($)", "Total Value ($)", "Appstreme No"
   ];
 
   const tableRows = items.map(item => [
@@ -156,7 +156,6 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
       halign: 'center',
       lineColor: [0, 0, 0], 
       lineWidth: 0.1,
-      // CHANGE 1: Set overflow to linebreak to wrap text
       overflow: 'linebreak', 
       cellWidth: 'auto',
     },
@@ -166,13 +165,17 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
       fontStyle: 'bold' 
     },
     columnStyles: {
-      // CHANGE 2: Define specific widths for long text columns to force wrapping
-      0: { cellWidth: 25 }, // Fabric Code
-      1: { cellWidth: 45, halign: 'left' }, // Item Description (Longest text)
-      3: { cellWidth: 20 }, // Challan No
-      4: { cellWidth: 20 }, // PI Number
-      9: { fontStyle: 'bold', cellWidth: 25 }, // Total Value
-      10: { cellWidth: 20 } // Appstreme No
+      0: { cellWidth: 34 }, // Fabric Code
+      1: { cellWidth: 50, halign: 'left' }, // Item Description
+      2: { cellWidth: 23 }, // Received Date
+      3: { cellWidth: 22 }, // Challan No
+      4: { cellWidth: 25 }, // PI Number
+      5: { cellWidth: 15 }, // Unit
+      6: { cellWidth: 18 }, // Invoice Qty
+      7: { cellWidth: 18 }, // Received Qty
+      8: { cellWidth: 20 }, // Unit Price
+      9: { fontStyle: 'bold', cellWidth: 26 }, // Total Value
+      10: { cellWidth: 22 } // Appstreme No
     },
     didParseCell: (data) => {
       if (data.row.index === tableRows.length - 1) {
@@ -180,7 +183,6 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
       }
     },
     margin: { left: marginX, right: marginX },
-    // This handles page breaks if the wrapped text makes the table too long
     pageBreak: 'auto', 
   });
 
@@ -241,8 +243,8 @@ const generateExcel = async (header: ReportHeader, items: LineItem[], totals: To
     ["L/C Number :", header.lcNumber],
     [],
     [
-      "Fabric Code", "Item Description", "Rcvd Date", "Challan No", "Pi Number", 
-      "Unit", "Invoice Qty", "Rcvd Qty", "Unit Price $", "Total Value", "Appstreme No.\n(Receipt no)"
+      "Fabric Code", "Item Description", "Received Date", "Challan No", "Pi Number", 
+      "Unit", "Invoice Qty", "Received Qty", "Unit Price $", "Total Value", "Appstreme No.\n(Receipt no)"
     ]
   ];
 

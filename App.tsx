@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { FileText, Plus, Trash2, Download, Eye } from "lucide-react";
+import { FileText, Plus, Trash2, Download, Eye, RotateCcw } from "lucide-react";
 import { ReportHeader, LineItem } from "./types";
 import { formatCurrency } from "./utils";
 import { calculateTotals, generateReports } from "./services/reportService";
@@ -7,6 +7,32 @@ import { RAW_CONTRACT_CSV } from "./data/contractData";
 import { RAW_SUPPLIER_LIST } from "./data/supplierData";
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Helper to get today's date in DD/MMM/YYYY format
+const getTodayDateStr = () => {
+  const today = new Date();
+  const d = String(today.getDate()).padStart(2, '0');
+  const m = months[today.getMonth()];
+  const y = today.getFullYear();
+  return `${d}/${m}/${y}`;
+};
+
+// Factory for a fresh, empty line item
+const createBlankItem = (): LineItem => ({
+  id: crypto.randomUUID(),
+  fabricCode: "",
+  itemDescription: "",
+  color: "",
+  hsCode: "",
+  rcvdDate: "",
+  challanNo: "",
+  piNumber: "",
+  unit: "YDS",
+  invoiceQty: 0,
+  rcvdQty: 0,
+  unitPrice: 0,
+  appstremeNo: "",
+});
 
 /**
  * Custom Smart Input Field with character-count thresholds and compact suggestions.
@@ -29,11 +55,9 @@ const SmartInputField: React.FC<{
   const filteredSuggestions = useMemo(() => {
     if (!value || value.length < threshold) return [];
     const normalized = value.toLowerCase();
-    
-    // For File No, check both raw and TTL- prefixed
     return suggestions
       .filter(s => s.toLowerCase().includes(normalized))
-      .slice(0, 12); // Keep it compact
+      .slice(0, 12);
   }, [value, suggestions, threshold]);
 
   useEffect(() => {
@@ -90,6 +114,17 @@ const SmartDateInput: React.FC<{
   className?: string;
 }> = ({ value, onChange, label, required, className }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleBlur = () => {
+    if (!value) return;
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      if (year.length === 2) {
+        onChange(`${day}/${month}/20${year}`);
+      }
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
@@ -151,15 +186,18 @@ const SmartDateInput: React.FC<{
         placeholder="DD/MM/YYYY"
         value={value || ""}
         onChange={handleChange}
+        onBlur={handleBlur}
         maxLength={11}
         data-is-date-input="true"
         className="date-input-highlight"
+        autoComplete="off"
       />
     </div>
   );
 };
 
 const App: React.FC = () => {
+  // Initial state defined inside to use the date helper
   const [header, setHeader] = useState<ReportHeader>({
     buyerName: "",
     supplierName: "",
@@ -167,35 +205,18 @@ const App: React.FC = () => {
     invoiceNo: "",
     lcNumber: "",
     invoiceDate: "",
-    billingDate: "",
+    billingDate: getTodayDateStr(), // Set on mount
   });
 
-  const [items, setItems] = useState<LineItem[]>([
-    {
-      id: crypto.randomUUID(),
-      fabricCode: "",
-      itemDescription: "",
-      color: "",
-      hsCode: "",
-      rcvdDate: "",
-      challanNo: "",
-      piNumber: "",
-      unit: "YDS",
-      invoiceQty: 0,
-      rcvdQty: 0,
-      unitPrice: 0,
-      appstremeNo: "",
-    },
-  ]);
-
+  const [items, setItems] = useState<LineItem[]>([createBlankItem()]);
   const [previewMode, setPreviewMode] = useState(false);
 
-  // Parse CSV Data from the shared file
+  // Parse CSV Data
   const contractLookup = useMemo(() => {
     const map: Record<string, string> = {};
     const lines = RAW_CONTRACT_CSV.split('\n');
     lines.forEach((line, index) => {
-      if (index === 0 || !line.trim()) return; // Skip header and empty lines
+      if (index === 0 || !line.trim()) return; 
       const parts = line.split(',');
       if (parts.length >= 2) {
         const contractNo = parts[0].trim();
@@ -244,43 +265,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, []);
 
-  useEffect(() => {
-    const today = new Date();
-    const d = String(today.getDate()).padStart(2, '0');
-    const m = months[today.getMonth()];
-    const y = today.getFullYear();
-    setHeader((prev) => ({ ...prev, billingDate: `${d}/${m}/${y}` }));
-  }, []);
-
   const updateHeaderField = (name: string, value: string) => {
     setHeader((prev) => {
       let nextValue = value;
       let matchedBuyer = "";
 
-      // Logic for File No
       if (name === "fileNo") {
         const trimmed = value.trim();
-        // 1. Check if user input is numeric only (e.g., 1199)
         if (/^\d{1,4}$/.test(trimmed)) {
           const autoPrefixed = `TTL-${trimmed}`;
           if (contractLookup[autoPrefixed]) {
-            nextValue = autoPrefixed; // Automatically convert 1199 to TTL-1199
+            nextValue = autoPrefixed;
             matchedBuyer = contractLookup[autoPrefixed];
           }
         } else {
-          // 2. Standard lookup (exact or case-insensitive)
           const uppercaseVal = trimmed.toUpperCase();
           matchedBuyer = contractLookup[trimmed] || contractLookup[uppercaseVal];
         }
       }
 
       const nextHeader = { ...prev, [name]: nextValue };
-      
-      // Auto-fill Buyer Name if it's currently empty and we found a match via File No
       if (name === "fileNo" && matchedBuyer && !prev.buyerName) {
         nextHeader.buyerName = matchedBuyer;
       }
-      
       return nextHeader;
     });
   };
@@ -295,28 +302,37 @@ const App: React.FC = () => {
   };
 
   const addNewRow = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        fabricCode: "",
-        itemDescription: "",
-        color: "",
-        hsCode: "",
-        rcvdDate: "",
-        challanNo: "",
-        piNumber: "",
-        unit: "YDS",
-        invoiceQty: 0,
-        rcvdQty: 0,
-        unitPrice: 0,
-        appstremeNo: "",
-      },
-    ]);
+    setItems((prev) => [...prev, createBlankItem()]);
   };
 
   const removeRow = (id: string) => {
     if (items.length > 1) setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  /**
+   * RE-IMPLEMENTED CLEAR ALL:
+   * Resets every single field and the table rows to exactly how they look 
+   * when the app first loads.
+   */
+  const clearAll = () => {
+    if (window.confirm("⚠️ This will permanently clear ALL entries and reset to defaults. Continue?")) {
+      // 1. Reset Header (restoring today's date for Billing Date as it would be on reload)
+      setHeader({
+        buyerName: "",
+        supplierName: "",
+        fileNo: "",
+        invoiceNo: "",
+        lcNumber: "",
+        invoiceDate: "",
+        billingDate: getTodayDateStr(),
+      });
+
+      // 2. Reset Items to exactly one blank row (generating a fresh UUID)
+      setItems([createBlankItem()]);
+      
+      // 3. Exit preview mode
+      setPreviewMode(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -372,7 +388,7 @@ const App: React.FC = () => {
                     onChange={handleHeaderChange} 
                     onSelectSuggestion={updateHeaderField}
                     suggestions={allSuppliers}
-                    threshold={2} // Minimum 2 digits for Supplier
+                    threshold={2} 
                   />
                 </div>
                 <div className="row-30-70">
@@ -383,7 +399,7 @@ const App: React.FC = () => {
                     onChange={handleHeaderChange} 
                     onSelectSuggestion={updateHeaderField}
                     suggestions={allContracts}
-                    threshold={3} // Minimum 3 digits for File No
+                    threshold={3} 
                   />
                   <div className="input-field">
                     <label className="input-label">Invoice No</label>
@@ -391,7 +407,8 @@ const App: React.FC = () => {
                       type="text" 
                       name="invoiceNo" 
                       value={header.invoiceNo} 
-                      onChange={handleHeaderChange} 
+                      onChange={handleHeaderChange}
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -404,7 +421,8 @@ const App: React.FC = () => {
                     type="text" 
                     name="lcNumber" 
                     value={header.lcNumber} 
-                    onChange={handleHeaderChange} 
+                    onChange={handleHeaderChange}
+                    autoComplete="off"
                   />
                 </div>
                 <div className="row-50-50">
@@ -419,8 +437,24 @@ const App: React.FC = () => {
             <div className="table-header">
               <div className="table-title">Line Items ({items.length})</div>
               <div className="table-controls">
-                <button className="btn btn-secondary btn-sm" onClick={() => setPreviewMode(!previewMode)}><Eye size={16} />{previewMode ? "Edit" : "Preview"}</button>
-                <button className="btn btn-primary btn-sm" onClick={addNewRow}><Plus size={16} />Add Row</button>
+                {!previewMode && (
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    style={{ backgroundColor: '#fff', border: '1px solid #fee2e2', color: '#dc2626' }} 
+                    onClick={clearAll}
+                  >
+                    <RotateCcw size={16} />
+                    Clear All
+                  </button>
+                )}
+                <button className="btn btn-secondary btn-sm" onClick={() => setPreviewMode(!previewMode)}>
+                  <Eye size={16} />
+                  {previewMode ? "Edit" : "Preview"}
+                </button>
+                <button className="btn btn-primary btn-sm" onClick={addNewRow}>
+                  <Plus size={16} />
+                  Add Row
+                </button>
               </div>
             </div>
 
@@ -430,12 +464,12 @@ const App: React.FC = () => {
                   <tr>
                     <th style={{ minWidth: "220px" }}>Code & Description</th>
                     <th style={{ minWidth: "120px" }}>Color & HS</th>
-                    <th style={{ minWidth: "140px" }}>Rcvd Date</th>
+                    <th style={{ minWidth: "140px" }}>Received Date</th>
                     <th style={{ minWidth: "160px" }}>Challan & PI</th>
                     <th style={{ minWidth: "60px" }}>Unit</th>
                     <th style={{ minWidth: "120px" }}>Quantities</th>
-                    <th style={{ minWidth: "100px" }}>Price</th>
-                    <th style={{ minWidth: "100px" }}>Total</th>
+                    <th style={{ minWidth: "100px" }}>Price ($)</th>
+                    <th style={{ minWidth: "100px" }}>Total ($)</th>
                     <th style={{ minWidth: "100px" }}>Appstreme</th>
                     <th style={{ minWidth: "40px" }}></th>
                   </tr>
@@ -446,16 +480,16 @@ const App: React.FC = () => {
                       <td>
                         {previewMode ? <div>{item.fabricCode}<br/>{item.itemDescription}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.fabricCode} onChange={e => handleItemChange(item.id, 'fabricCode', e.target.value)} placeholder="Code" />
-                            <input type="text" value={item.itemDescription} onChange={e => handleItemChange(item.id, 'itemDescription', e.target.value)} placeholder="Desc" />
+                            <input type="text" value={item.fabricCode} onChange={e => handleItemChange(item.id, 'fabricCode', e.target.value)} placeholder="Code" autoComplete="off" />
+                            <input type="text" value={item.itemDescription} onChange={e => handleItemChange(item.id, 'itemDescription', e.target.value)} placeholder="Description" autoComplete="off" />
                           </div>
                         )}
                       </td>
                       <td>
                         {previewMode ? <div>{item.color}<br/>{item.hsCode}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.color} onChange={e => handleItemChange(item.id, 'color', e.target.value)} placeholder="Color" />
-                            <input type="text" value={item.hsCode} onChange={e => handleItemChange(item.id, 'hsCode', e.target.value)} placeholder="HS" />
+                            <input type="text" value={item.color} onChange={e => handleItemChange(item.id, 'color', e.target.value)} placeholder="Color" autoComplete="off" />
+                            <input type="text" value={item.hsCode} onChange={e => handleItemChange(item.id, 'hsCode', e.target.value)} placeholder="HS Code" autoComplete="off" />
                           </div>
                         )}
                       </td>
@@ -465,8 +499,8 @@ const App: React.FC = () => {
                       <td>
                         {previewMode ? <div>{item.challanNo}<br/>{item.piNumber}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.challanNo} onChange={e => handleItemChange(item.id, 'challanNo', e.target.value)} placeholder="Challan" />
-                            <input type="text" value={item.piNumber} onChange={e => handleItemChange(item.id, 'piNumber', e.target.value)} placeholder="PI" />
+                            <input type="text" value={item.challanNo} onChange={e => handleItemChange(item.id, 'challanNo', e.target.value)} placeholder="Challan" autoComplete="off" />
+                            <input type="text" value={item.piNumber} onChange={e => handleItemChange(item.id, 'piNumber', e.target.value)} placeholder="PI" autoComplete="off" />
                           </div>
                         )}
                       </td>
@@ -478,19 +512,21 @@ const App: React.FC = () => {
                         )}
                       </td>
                       <td>
-                        {previewMode ? <div>Invoice: {item.invoiceQty}<br/>Rcvd: {item.rcvdQty}</div> : (
+                        {previewMode ? <div>Inv: {item.invoiceQty}<br/>Rec: {item.rcvdQty}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
                             <input 
                               type="number" 
                               value={item.invoiceQty === 0 ? "" : item.invoiceQty} 
                               onChange={e => handleItemChange(item.id, 'invoiceQty', parseFloat(e.target.value)||0)} 
-                              placeholder="Inv" 
+                              placeholder="Invoice" 
+                              autoComplete="off"
                             />
                             <input 
                               type="number" 
                               value={item.rcvdQty === 0 ? "" : item.rcvdQty} 
                               onChange={e => handleItemChange(item.id, 'rcvdQty', parseFloat(e.target.value)||0)} 
-                              placeholder="Rec" 
+                              placeholder="Received" 
+                              autoComplete="off"
                             />
                           </div>
                         )}
@@ -502,12 +538,17 @@ const App: React.FC = () => {
                             value={item.unitPrice === 0 ? "" : item.unitPrice} 
                             onChange={e => handleItemChange(item.id, 'unitPrice', parseFloat(e.target.value)||0)} 
                             step="0.01" 
-                            placeholder="0.01"
+                            placeholder="Price"
+                            autoComplete="off"
                           />
                         )}
                       </td>
                       <td style={{textAlign:'right'}}><strong>${(item.invoiceQty * item.unitPrice).toFixed(2)}</strong></td>
-                      <td>{previewMode ? <span>{item.appstremeNo ? item.appstremeNo.toString().padStart(8, '0') : ""}</span> : <input type="text" value={item.appstremeNo} onChange={e => handleItemChange(item.id, 'appstremeNo', e.target.value)} placeholder="No" />}</td>
+                      <td>
+                        {previewMode ? <span>{item.appstremeNo}</span> : (
+                          <input type="text" value={item.appstremeNo} onChange={e => handleItemChange(item.id, 'appstremeNo', e.target.value)} placeholder="Receipt No" autoComplete="off" />
+                        )}
+                      </td>
                       <td>{!previewMode && <button className="btn btn-danger btn-sm" onClick={() => removeRow(item.id)} disabled={items.length===1}><Trash2 size={14}/></button>}</td>
                     </tr>
                   ))}
@@ -522,14 +563,14 @@ const App: React.FC = () => {
         <div className="footer-summary">
           <div className="footer-summary-item">
             <div className="footer-summary-label">Buyer Name</div>
-            <div className="footer-summary-value">{header.buyerName || "Not selected"}</div>
+            <div className="footer-summary-value">{header.buyerName || "None"}</div>
           </div>
           <div className={`footer-summary-item ${hasQtyMismatch ? "qty-mismatch" : ""}`}>
             <div className="footer-summary-label">Invoice Qty</div>
             <div className="footer-summary-value">{totals.totalInvoiceQty.toFixed(2)}</div>
           </div>
           <div className={`footer-summary-item ${hasQtyMismatch ? "qty-mismatch" : ""}`}>
-            <div className="footer-summary-label">Rcvd Qty</div>
+            <div className="footer-summary-label">Received Qty</div>
             <div className="footer-summary-value">{totals.totalRcvdQty.toFixed(2)}</div>
           </div>
           <div className="footer-summary-item">
