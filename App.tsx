@@ -313,44 +313,43 @@ const App: React.FC = () => {
    * RE-IMPLEMENTED CLEAR ALL (FIXED REAL-CASE LOGIC):
    * This function forces a fresh state by creating brand-new objects and IDs.
    * Also uses resetKey to force a complete re-mount of input components.
+   * Confirmation popup removed for immediate reset.
    */
   const clearAll = () => {
-    if (window.confirm("⚠️ Clear all fields and reset to defaults? This cannot be undone.")) {
-      // 1. Reset Header explicitly
-      const today = getTodayDateStr();
-      setHeader({
-        buyerName: "",
-        supplierName: "",
-        fileNo: "",
-        invoiceNo: "",
-        lcNumber: "",
-        invoiceDate: "",
-        billingDate: today,
-      });
+    // 1. Reset Header explicitly
+    const today = getTodayDateStr();
+    setHeader({
+      buyerName: "",
+      supplierName: "",
+      fileNo: "",
+      invoiceNo: "",
+      lcNumber: "",
+      invoiceDate: "",
+      billingDate: today,
+    });
 
-      // 2. Reset Items with a completely NEW UUID to force input re-render
-      setItems([{
-        id: crypto.randomUUID(),
-        fabricCode: "",
-        itemDescription: "",
-        color: "",
-        hsCode: "",
-        rcvdDate: "",
-        challanNo: "",
-        piNumber: "",
-        unit: "YDS",
-        invoiceQty: 0,
-        rcvdQty: 0,
-        unitPrice: 0,
-        appstremeNo: "",
-      }]);
-      
-      // 3. Reset Preview State
-      setPreviewMode(false);
+    // 2. Reset Items with a completely NEW UUID to force input re-render
+    setItems([{
+      id: crypto.randomUUID(),
+      fabricCode: "",
+      itemDescription: "",
+      color: "",
+      hsCode: "",
+      rcvdDate: "",
+      challanNo: "",
+      piNumber: "",
+      unit: "YDS",
+      invoiceQty: 0,
+      rcvdQty: 0,
+      unitPrice: 0,
+      appstremeNo: "",
+    }]);
+    
+    // 3. Reset Preview State
+    setPreviewMode(false);
 
-      // 4. Force UI Refresh of all inputs
-      setResetKey(prev => prev + 1);
-    }
+    // 4. Force UI Refresh of all inputs
+    setResetKey(prev => prev + 1);
   };
 
   const handleGenerate = async () => {
