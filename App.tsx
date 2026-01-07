@@ -78,7 +78,7 @@ const SmartInputField: React.FC<{
       <input
         type="text"
         name={name}
-        value={value}
+        value={value || ""}
         onChange={(e) => {
           onChange(e);
           setShowDropdown(true);
@@ -197,7 +197,6 @@ const SmartDateInput: React.FC<{
 };
 
 const App: React.FC = () => {
-  // Initial state defined inside to use the date helper
   const [header, setHeader] = useState<ReportHeader>({
     buyerName: "",
     supplierName: "",
@@ -205,11 +204,12 @@ const App: React.FC = () => {
     invoiceNo: "",
     lcNumber: "",
     invoiceDate: "",
-    billingDate: getTodayDateStr(), // Set on mount
+    billingDate: getTodayDateStr(),
   });
 
   const [items, setItems] = useState<LineItem[]>([createBlankItem()]);
   const [previewMode, setPreviewMode] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
 
   // Parse CSV Data
   const contractLookup = useMemo(() => {
@@ -310,13 +310,14 @@ const App: React.FC = () => {
   };
 
   /**
-   * RE-IMPLEMENTED CLEAR ALL:
-   * Resets every single field and the table rows to exactly how they look 
-   * when the app first loads.
+   * RE-IMPLEMENTED CLEAR ALL (FIXED REAL-CASE LOGIC):
+   * This function forces a fresh state by creating brand-new objects and IDs.
+   * Also uses resetKey to force a complete re-mount of input components.
    */
   const clearAll = () => {
-    if (window.confirm("⚠️ This will permanently clear ALL entries and reset to defaults. Continue?")) {
-      // 1. Reset Header (restoring today's date for Billing Date as it would be on reload)
+    if (window.confirm("⚠️ Clear all fields and reset to defaults? This cannot be undone.")) {
+      // 1. Reset Header explicitly
+      const today = getTodayDateStr();
       setHeader({
         buyerName: "",
         supplierName: "",
@@ -324,14 +325,31 @@ const App: React.FC = () => {
         invoiceNo: "",
         lcNumber: "",
         invoiceDate: "",
-        billingDate: getTodayDateStr(),
+        billingDate: today,
       });
 
-      // 2. Reset Items to exactly one blank row (generating a fresh UUID)
-      setItems([createBlankItem()]);
+      // 2. Reset Items with a completely NEW UUID to force input re-render
+      setItems([{
+        id: crypto.randomUUID(),
+        fabricCode: "",
+        itemDescription: "",
+        color: "",
+        hsCode: "",
+        rcvdDate: "",
+        challanNo: "",
+        piNumber: "",
+        unit: "YDS",
+        invoiceQty: 0,
+        rcvdQty: 0,
+        unitPrice: 0,
+        appstremeNo: "",
+      }]);
       
-      // 3. Exit preview mode
+      // 3. Reset Preview State
       setPreviewMode(false);
+
+      // 4. Force UI Refresh of all inputs
+      setResetKey(prev => prev + 1);
     }
   };
 
@@ -361,7 +379,7 @@ const App: React.FC = () => {
 
       <div className="content-wrapper">
         <div className="main-panel">
-          <div className="form-section">
+          <div className="form-section" key={resetKey}>
             <div className="bill-info-header">
               <FileText size={18} />
               <span>Bill Information</span>
@@ -406,7 +424,7 @@ const App: React.FC = () => {
                     <input 
                       type="text" 
                       name="invoiceNo" 
-                      value={header.invoiceNo} 
+                      value={header.invoiceNo || ""} 
                       onChange={handleHeaderChange}
                       autoComplete="off"
                     />
@@ -420,7 +438,7 @@ const App: React.FC = () => {
                   <input 
                     type="text" 
                     name="lcNumber" 
-                    value={header.lcNumber} 
+                    value={header.lcNumber || ""} 
                     onChange={handleHeaderChange}
                     autoComplete="off"
                   />
@@ -459,7 +477,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="table-wrapper">
-              <table>
+              <table key={`table-${resetKey}`}>
                 <thead>
                   <tr>
                     <th style={{ minWidth: "220px" }}>Code & Description</th>
@@ -480,16 +498,16 @@ const App: React.FC = () => {
                       <td>
                         {previewMode ? <div>{item.fabricCode}<br/>{item.itemDescription}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.fabricCode} onChange={e => handleItemChange(item.id, 'fabricCode', e.target.value)} placeholder="Code" autoComplete="off" />
-                            <input type="text" value={item.itemDescription} onChange={e => handleItemChange(item.id, 'itemDescription', e.target.value)} placeholder="Description" autoComplete="off" />
+                            <input type="text" value={item.fabricCode || ""} onChange={e => handleItemChange(item.id, 'fabricCode', e.target.value)} placeholder="Code" autoComplete="off" />
+                            <input type="text" value={item.itemDescription || ""} onChange={e => handleItemChange(item.id, 'itemDescription', e.target.value)} placeholder="Description" autoComplete="off" />
                           </div>
                         )}
                       </td>
                       <td>
                         {previewMode ? <div>{item.color}<br/>{item.hsCode}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.color} onChange={e => handleItemChange(item.id, 'color', e.target.value)} placeholder="Color" autoComplete="off" />
-                            <input type="text" value={item.hsCode} onChange={e => handleItemChange(item.id, 'hsCode', e.target.value)} placeholder="HS Code" autoComplete="off" />
+                            <input type="text" value={item.color || ""} onChange={e => handleItemChange(item.id, 'color', e.target.value)} placeholder="Color" autoComplete="off" />
+                            <input type="text" value={item.hsCode || ""} onChange={e => handleItemChange(item.id, 'hsCode', e.target.value)} placeholder="HS Code" autoComplete="off" />
                           </div>
                         )}
                       </td>
@@ -499,8 +517,8 @@ const App: React.FC = () => {
                       <td>
                         {previewMode ? <div>{item.challanNo}<br/>{item.piNumber}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
-                            <input type="text" value={item.challanNo} onChange={e => handleItemChange(item.id, 'challanNo', e.target.value)} placeholder="Challan" autoComplete="off" />
-                            <input type="text" value={item.piNumber} onChange={e => handleItemChange(item.id, 'piNumber', e.target.value)} placeholder="PI" autoComplete="off" />
+                            <input type="text" value={item.challanNo || ""} onChange={e => handleItemChange(item.id, 'challanNo', e.target.value)} placeholder="Challan" autoComplete="off" />
+                            <input type="text" value={item.piNumber || ""} onChange={e => handleItemChange(item.id, 'piNumber', e.target.value)} placeholder="PI" autoComplete="off" />
                           </div>
                         )}
                       </td>
@@ -546,7 +564,7 @@ const App: React.FC = () => {
                       <td style={{textAlign:'right'}}><strong>${(item.invoiceQty * item.unitPrice).toFixed(2)}</strong></td>
                       <td>
                         {previewMode ? <span>{item.appstremeNo}</span> : (
-                          <input type="text" value={item.appstremeNo} onChange={e => handleItemChange(item.id, 'appstremeNo', e.target.value)} placeholder="Receipt No" autoComplete="off" />
+                          <input type="text" value={item.appstremeNo || ""} onChange={e => handleItemChange(item.id, 'appstremeNo', e.target.value)} placeholder="Receipt No" autoComplete="off" />
                         )}
                       </td>
                       <td>{!previewMode && <button className="btn btn-danger btn-sm" onClick={() => removeRow(item.id)} disabled={items.length===1}><Trash2 size={14}/></button>}</td>
