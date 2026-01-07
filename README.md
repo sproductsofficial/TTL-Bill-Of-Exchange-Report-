@@ -1,4 +1,4 @@
-# 🚀 Tusuka Inventory Report Generator - Vercel Edition
+# 🚀 Bill Of Exchange Report Generator - Vercel Edition
 
 A **professional-grade, single-page** inventory and billing management system built with **React + TypeScript**. Generate PDF and Excel reports automatically with a modern, stylish interface.
 
