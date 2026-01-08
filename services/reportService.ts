@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
@@ -39,11 +38,10 @@ export const generateReports = async (header: ReportHeader, items: LineItem[]) =
     await generatePDF(header, items, totals, baseFilename);
   } catch (e) {
     console.error("PDF Generation failed", e);
-    alert("PDF Generation Error: Check console for details.");
   }
   
-  // Delay to ensure the browser processes the first download before the second
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Small delay to prevent browser from blocking the second download
+  await new Promise(resolve => setTimeout(resolve, 800));
 
   // Generate Excel
   try {
@@ -56,7 +54,6 @@ export const generateReports = async (header: ReportHeader, items: LineItem[]) =
 };
 
 const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Totals, filename: string) => {
-  // A4 Landscape is 297mm x 210mm
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -66,60 +63,50 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
 
   doc.setTextColor(0, 0, 0);
 
-  // --- Layout Constants ---
   const marginX = 10;
-  const topMargin = 8;
-  const headerSectionHeight = 42; 
+  const topMargin = 10;
+  const headerSectionHeight = 45; 
   const tableStartY = topMargin + headerSectionHeight;
   
-  // Footer area constants
-  const bottomMargin = 8;
-  const signatureLineHeight = 12; // Height of the signature block
-  const wordsSectionHeight = 8; // Max height for "In Words"
-  const footerFixedReserve = signatureLineHeight + wordsSectionHeight + 10; // Reserve at bottom (30mm)
-  
-  // Calculate available space for the table to ensure it stays on one page
-  const tableMaxHeight = pageHeight - tableStartY - footerFixedReserve;
-  
-  // Total rows including Header and Footer (Total) row
-  const rowCount = items.length + 1; 
-  
-  // Dynamic scaling based on row count
-  // We want to reduce row height and font size as count increases
-  let dynamicRowHeight = tableMaxHeight / rowCount;
-  
-  // Clamping values for readability
-  // Minimum row height allowed: 3.5mm (very tight)
-  // Maximum row height allowed: 8mm (standard)
-  const finalRowHeight = Math.max(3.5, Math.min(8, dynamicRowHeight));
-  
-  // Scale font size based on row height (roughly 1.8 ratio of mm to pt is common for jsPDF)
-  // 3.5mm height -> ~6pt font
-  // 8mm height -> ~10pt font
-  const fontSize = Math.max(5.5, Math.min(9.5, (finalRowHeight * 1.8)));
+  const signatureBlockHeight = 15;
+  const bottomMargin = 10;
+  const fixedSignatureGap = 20; 
+
+  const signatureLineY = pageHeight - bottomMargin - signatureBlockHeight;
+  const tableMaxEndY = signatureLineY - fixedSignatureGap - 10; 
+  const availableTableHeight = tableMaxEndY - tableStartY;
+
+  const totalRows = items.length + 2; 
+  let targetRowHeight = availableTableHeight / totalRows;
+  const finalRowHeight = Math.max(4.5, Math.min(12, targetRowHeight));
+
+  const minFontSize = 6;
+  const maxFontSize = 10;
+  const fontSize = minFontSize + (finalRowHeight - 4.5) * ((maxFontSize - minFontSize) / (12 - 4.5));
+  const cellPadding = Math.max(0.5, finalRowHeight * 0.15);
 
   // --- Header Text ---
   doc.setFont(fontName, 'bold');
-  doc.setFontSize(18);
+  doc.setFontSize(20);
   doc.text("Tusuka Trousers Ltd.", pageWidth / 2, topMargin, { align: 'center' });
   
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont(fontName, 'normal');
-  doc.text("Neelngar, Konabari, Gazipur", pageWidth / 2, topMargin + 6, { align: 'center' });
+  doc.text("Neelngar, Konabari, Gazipur", pageWidth / 2, topMargin + 7, { align: 'center' });
 
-  doc.setFontSize(14);
+  doc.setFontSize(15);
   doc.setFont(fontName, 'bold');
-  doc.text("Bill Of Exchange Report", pageWidth / 2, topMargin + 13, { align: 'center' });
+  doc.text("Bill Of Exchange Report", pageWidth / 2, topMargin + 15, { align: 'center' });
 
-  const infoY = topMargin + 20;
-  const infoLineStep = 5;
-  doc.setFontSize(8.5);
+  const infoY = topMargin + 22;
+  const infoLineStep = 5.5;
+  doc.setFontSize(9);
   
   const drawInfo = (label: string, value: string, x: number, y: number) => {
     doc.setFont(fontName, 'bold'); 
     doc.text(label, x, y);
     doc.setFont(fontName, 'normal'); 
-    doc.text(value || '', x + 28, y);
+    doc.text(value || '', x + 30, y);
   };
 
   drawInfo("Buyer Name :", header.buyerName, marginX, infoY);
@@ -128,7 +115,7 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
   drawInfo("Invoice No :", header.invoiceNo, marginX, infoY + infoLineStep * 3);
   drawInfo("L/C Number :", header.lcNumber, marginX, infoY + infoLineStep * 4);
 
-  const rightColX = pageWidth - 80;
+  const rightColX = pageWidth - 85;
   drawInfo("Invoice Date:", formatDateForReport(header.invoiceDate), rightColX, infoY);
   drawInfo("Billing Date:", formatDateForReport(header.billingDate), rightColX, infoY + infoLineStep);
 
@@ -152,27 +139,25 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
     item.appstremeNo
   ]);
 
-  // Total row
   tableRows.push(["", "", "", "", "", "TOTAL", `${Math.round(totals.totalInvoiceQty).toLocaleString()}`, `${Math.round(totals.totalRcvdQty).toLocaleString()}`, "", `$ ${totals.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, ""]);
 
-  // --- Render Table ---
+  // --- Main Table Configuration ---
   autoTable(doc, {
     startY: tableStartY,
     head: [tableColumn],
     body: tableRows,
     theme: 'grid',
-    pageBreak: 'avoid', // STICK TO ONE PAGE
     styles: {
-      font: fontName,
       fontSize: fontSize,
       textColor: [0, 0, 0], 
-      cellPadding: 0.5,
+      cellPadding: cellPadding,
       minCellHeight: finalRowHeight,
       valign: 'middle',
       halign: 'center',
       lineColor: [0, 0, 0], 
-      lineWidth: 0.05,
-      overflow: 'ellipsize', 
+      lineWidth: 0.1,
+      overflow: 'linebreak', 
+      cellWidth: 'auto',
     },
     headStyles: { 
       fillColor: [245, 245, 245], 
@@ -180,17 +165,17 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
       fontStyle: 'bold' 
     },
     columnStyles: {
-      0: { cellWidth: 28 }, 
-      1: { cellWidth: 'auto', halign: 'left' }, 
-      2: { cellWidth: 22 }, 
-      3: { cellWidth: 20 }, 
-      4: { cellWidth: 24 }, 
-      5: { cellWidth: 12 }, 
-      6: { cellWidth: 18 }, 
-      7: { cellWidth: 18 }, 
-      8: { cellWidth: 20 }, 
-      9: { fontStyle: 'bold', cellWidth: 26 }, 
-      10: { cellWidth: 22 } 
+      0: { cellWidth: 34 }, // Fabric Code
+      1: { cellWidth: 50, halign: 'left' }, // Item Description
+      2: { cellWidth: 23 }, // Received Date
+      3: { cellWidth: 22 }, // Challan No
+      4: { cellWidth: 25 }, // PI Number
+      5: { cellWidth: 15 }, // Unit
+      6: { cellWidth: 18 }, // Invoice Qty
+      7: { cellWidth: 18 }, // Received Qty
+      8: { cellWidth: 20 }, // Unit Price
+      9: { fontStyle: 'bold', cellWidth: 26 }, // Total Value
+      10: { cellWidth: 22 } // Appstreme No
     },
     didParseCell: (data) => {
       if (data.row.index === tableRows.length - 1) {
@@ -198,47 +183,50 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
       }
     },
     margin: { left: marginX, right: marginX },
+    pageBreak: 'auto', 
   });
 
-  // --- Dynamic Footer Placement ---
-  const lastTableY = (doc as any).lastAutoTable.finalY;
-  
-  // Anchor "In Words" slightly after the table
-  const wordsY = lastTableY + 5;
-  const wordsText = `In Words: ${numberToWords(totals.totalValue)}`;
-  doc.setFont(fontName, 'bold');
-  doc.setFontSize(Math.max(7, fontSize - 1));
-  
-  // Determine wrap width for words
-  const unitColX = (doc as any).lastAutoTable.columns[5].x;
-  const tableWidth = pageWidth - (marginX * 2);
-  const wrapWidth = pageWidth - marginX - unitColX;
-  
-  doc.text(wordsText, unitColX, wordsY, {
-    maxWidth: Math.max(wrapWidth, 100),
-    align: 'left'
-  });
+  // --- Footer / In Words Section ---
+  const finalTableInfo = (doc as any).lastAutoTable;
+  if (finalTableInfo) {
+    const finalTableY = finalTableInfo.finalY || tableStartY + 20;
+    const unitCol = finalTableInfo.columns[5];
+    const appstremeCol = finalTableInfo.columns[10];
+    const unitColumnX = (unitCol && !isNaN(unitCol.x)) ? unitCol.x : marginX + 100; 
+    const tableEndX = (appstremeCol && !isNaN(appstremeCol.x) && !isNaN(appstremeCol.width)) 
+      ? (appstremeCol.x + appstremeCol.width) 
+      : (pageWidth - marginX);
+    
+    const wordsY = finalTableY + 8;
+    const wordsText = `In Words: ${numberToWords(totals.totalValue)}`;
 
-  // --- Signatures Anchored to Bottom ---
-  // Ensuring signatures are pushed down to the very bottom of the single page
-  const signatureLineY = pageHeight - bottomMargin - signatureLineHeight;
+    doc.setFont(fontName, 'bold');
+    doc.setFontSize(10);
+    
+    if (typeof wordsText === 'string' && !isNaN(unitColumnX)) {
+      const wrapWidth = tableEndX - unitColumnX;
+      doc.text(wordsText, unitColumnX, wordsY, {
+        maxWidth: wrapWidth > 10 ? wrapWidth : 120,
+        align: 'left'
+      });
+    }
+  }
+
+  // --- Signature Section ---
   doc.setLineWidth(0.2);
   doc.setFontSize(9);
-  doc.setFont(fontName, 'normal');
+  if (!isNaN(signatureLineY)) {
+    doc.line(marginX + 5, signatureLineY, marginX + 65, signatureLineY);
+    doc.text("Prepared By", marginX + 20, signatureLineY + 5);
+    doc.line(pageWidth - marginX - 65, signatureLineY, pageWidth - marginX - 5, signatureLineY);
+    doc.text("Store In-Charge", pageWidth - marginX - 52, signatureLineY + 5);
+  }
 
-  // Left Signature
-  doc.line(marginX + 5, signatureLineY, marginX + 65, signatureLineY);
-  doc.text("Prepared By", marginX + 20, signatureLineY + 5);
-
-  // Right Signature
-  doc.line(pageWidth - marginX - 65, signatureLineY, pageWidth - marginX - 5, signatureLineY);
-  doc.text("Store In-Charge", pageWidth - marginX - 52, signatureLineY + 5);
-
-  // Save the PDF
   doc.save(`${filename}.pdf`);
 };
 
 const generateExcel = async (header: ReportHeader, items: LineItem[], totals: Totals, filename: string) => {
+  // Use the default export to instantiate Workbook
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Bill Of Exchange Report');
 
