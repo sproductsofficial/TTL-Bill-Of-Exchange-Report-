@@ -202,7 +202,7 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
   doc.setFont(fontName, 'bold');
   doc.setTextColor(0, 0, 0); // Strictly black
   doc.setFontSize(Math.max(fontSize, 8.5)); // Matches table text size scaling
-  doc.text(`IN WORDS: ${numberToWords(totals.totalValue).toUpperCase()} USD ONLY`, marginX + 60, finalTableY + 4);
+  doc.text(`IN WORDS: ${numberToWords(totals.totalValue).toUpperCase()} ONLY`, marginX + 60, finalTableY + 4);
 
   // --- Signature (Fixed Green Area) ---
   doc.setLineWidth(0.15);
