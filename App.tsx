@@ -474,7 +474,6 @@ const App: React.FC = () => {
                 </button>
               </div>
             </div>
-
             <div className="table-wrapper">
               <table key={`table-${resetKey}`}>
                 <thead>
@@ -483,8 +482,9 @@ const App: React.FC = () => {
                     <th style={{ minWidth: "120px" }}>Color & HS</th>
                     <th style={{ minWidth: "140px" }}>Received Date</th>
                     <th style={{ minWidth: "160px" }}>Challan & PI</th>
-                    <th style={{ minWidth: "60px" }}>Unit</th>
                     <th style={{ minWidth: "120px" }}>Quantities</th>
+                    {/* Unit moved here, after Quantities */}
+                    <th style={{ minWidth: "100px" }}>Unit</th> 
                     <th style={{ minWidth: "100px" }}>Price ($)</th>
                     <th style={{ minWidth: "100px" }}>Total ($)</th>
                     <th style={{ minWidth: "100px" }}>Appstreme</th>
@@ -522,13 +522,6 @@ const App: React.FC = () => {
                         )}
                       </td>
                       <td>
-                        {previewMode ? <span>{item.unit}</span> : (
-                          <select value={item.unit} onChange={e => handleItemChange(item.id, 'unit', e.target.value)}>
-                            <option>YDS</option><option>PCS</option><option>KG</option><option>MTR</option><option>BOX</option>
-                          </select>
-                        )}
-                      </td>
-                      <td>
                         {previewMode ? <div>Inv: {item.invoiceQty}<br/>Rec: {item.rcvdQty}</div> : (
                           <div style={{display:'flex', flexDirection:'column', gap:'4px'}}>
                             <input 
@@ -546,6 +539,14 @@ const App: React.FC = () => {
                               autoComplete="off"
                             />
                           </div>
+                        )}
+                      </td>
+                      {/* Unit Data moved here */}
+                      <td>
+                        {previewMode ? <span>{item.unit}</span> : (
+                          <select value={item.unit} onChange={e => handleItemChange(item.id, 'unit', e.target.value)}>
+                            <option>YDS</option><option>PCS</option><option>KG</option><option>MTR</option><option>BOX</option>
+                          </select>
                         )}
                       </td>
                       <td>
