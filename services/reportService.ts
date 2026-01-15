@@ -92,7 +92,7 @@ const generatePDF = async (header: ReportHeader, items: LineItem[], totals: Tota
 
   doc.setFontSize(13); // Reduced from 15
   doc.setFont(fontName, 'bold');
-  doc.text("Bill Of Exchange Report", pageWidth / 2, topMargin + 16, { align: 'center' });
+  doc.text("Inventory Report", pageWidth / 2, topMargin + 16, { align: 'center' });
 
   // ===== 3. HEADER INFO SECTION (Yellow Area - Tightened) =====
   const infoY = topMargin + 22; // Moved up
